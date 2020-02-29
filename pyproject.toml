@@ -3,7 +3,6 @@ name = "dagma"
 version = "0.1.0"
 description = "A lightweight pipelining tool for computation."
 authors = ["Casey Graff <caseyagraff@gmail.com>"]
-
 license = 'BSD 2'
 readme = "README.md"
 
@@ -18,6 +17,7 @@ black = "^19.10b0"
 mypy = "^0.761"
 codecov = "^2.0.16"
 flake8 = "^3.7.9"
+click = "^7.0"
 
 [build-system]
 requires = ["poetry>=0.12"]
