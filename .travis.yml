@@ -1,0 +1,21 @@
+language: python
+python:
+  - 3.7
+
+cache:
+  pip: true
+  directories:
+    - "$HOME/.cache/pre-commit"
+
+before_install:
+  - pip install poetry
+
+install:
+  - poetry install
+
+script:
+  - make check
+  - make test
+
+after_success:
+  - codecov --disable=gcov
