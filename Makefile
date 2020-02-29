@@ -1,7 +1,4 @@
-DAGMA_RELEASE := $$(sed -E "s/__version__ = '(.+)'/\1/p" dagma/__version__.py)
-
-version:
-	@echo ${DAGMA_RELEASE}
+SCRIPT_DIR='scripts'
 
 # lists all available targets
 list:
@@ -20,11 +17,11 @@ clean:
 	@find . -type f -name "*.py[co]" -exec rm -rf {} +
 
 format:
-	@poetry run black dagma/ tests/
+	@poetry run black dagma/ tests/ scripts/
 
 check:
-	@poetry run flake8 dagma tests
-	@poetry run mypy dagma tests
+	@poetry run flake8 dagma tests scripts
+	@poetry run mypy dagma tests scripts
 
 setup:
 	@poetry install
