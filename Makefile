@@ -38,3 +38,6 @@ publish:
 
 test:
 	@poetry run pytest --cov=dagma --cov-config .coveragerc tests/
+
+test_watch:
+	@poetry run ptw -c

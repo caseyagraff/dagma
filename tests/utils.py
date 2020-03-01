@@ -11,6 +11,9 @@ class Counter:
     def reset(self):
         self.count = 0
 
+    def __repr__(self):
+        return f"Counter({self.count})"
+
 
 def call_count(counter):
     """
