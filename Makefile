@@ -26,6 +26,10 @@ check:
 setup:
 	@poetry install
 
+install_hooks:
+	@poetry run pre-commit install
+	@poetry run pre-commit install -t pre-push
+
 build:
 	@poetry build
 

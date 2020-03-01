@@ -104,14 +104,12 @@ class ComputeNode(Node):
         """
         Evaluate the graph with inputs vars. Can force to recompute all nodes.
         """
-        print(self)
         # Check if any required vars are not specified in vars_
         missing_var_deps = self._get_missing_var_deps(vars_)
         if missing_var_deps:
             raise ValueError(STR_MISSING_VAR_DEPS % missing_var_deps)
 
         if force or not self._value or not self._compare_vars(self._value[1], vars_):
-            print(force, not self._value)
             # Compute dependent values
             dep_vals = [d._compute(vars_, force=force) for d in self._node_deps]
 
