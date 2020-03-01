@@ -35,7 +35,7 @@ repos:
     -   id: pytest
         name: pytest
         entry: poetry run pytest --cov=dagma --cov-config .coveragerc tests/
-        files: '(.*_test|test_.*).py'
+        pass_filenames: false
         language: system
         types: [python]
         stages: [push]

@@ -91,6 +91,7 @@ class ComputeNode(Node):
             transform: function to apply to node's input
             save: save function for node's output
             load: load function for node's saved output
+            deps: constants, graph vars, or nodes this node depends on
         """
         super().__init__()
 
