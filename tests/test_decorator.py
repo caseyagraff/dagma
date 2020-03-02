@@ -1,4 +1,4 @@
-from dagma import create_node
+from dagma import create_node, QueueRunner
 
 
 @create_node
@@ -48,6 +48,8 @@ def test_one_node_pipeline():
     a = add_one("x")
     out = a(x=1)
 
+    out = QueueRunner(out)
+
     assert out.value == 2
 
 
@@ -58,6 +60,8 @@ def test_multiple_inputs_source():
     s = sum_all("x", "y", "z")
     out = s(x=1, y=3, z=5)
 
+    out = QueueRunner(out)
+
     assert out.value == 9
 
 
@@ -66,6 +70,8 @@ def test_two_node_pipeline():
     1 -> add_one -> 2 -> multiply_two -> 4
     """
     out = multiply_two(x=1)
+
+    out = QueueRunner(out)
 
     assert out.value == 4
 
@@ -76,6 +82,8 @@ def test_multi_dep_pipeline():
     4 -> subtract_one -> 2 ->
     """
     out = add_together(x=2, y=4)
+
+    out = QueueRunner(out)
 
     assert out.value == 4 + 1
 
@@ -88,6 +96,8 @@ def test_same_source_multi_dep_pipeline():
     """
     out = subtract_together(x=1)
 
+    out = QueueRunner(out)
+
     assert out.value == 3
 
 
@@ -97,5 +107,7 @@ def test_dep_and_input():
          4       ->
     """
     out = remainder(x=5, y=4)
+
+    out = QueueRunner(out)
 
     assert out.value

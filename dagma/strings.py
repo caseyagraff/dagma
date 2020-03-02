@@ -1,3 +1,6 @@
+STR_COMPUTE_NODE_REPR = "(%s, bound=%s)"
+
+# === Error Messages ===
 STR_MISSING_VAR_DEPS = "Not all graph variables are bound. Missing %s."
 
 STR_NO_SAVE_FUNC = "No save function provided."

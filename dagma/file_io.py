@@ -4,17 +4,21 @@ import pickle
 import os
 
 from .strings import STR_SAVE_FUNC_EXCEPTION, STR_LOAD_FUNC_EXCEPTION
+from .hashing import hash_bytes, file_as_blocks
 
 
 class File:
-    def __init__(self, path):
+    def __init__(self, path, hash_alg=None):
         self._path = path
+        self._hash_alg = hash_alg
+        self._checksum = None
 
     def save(self, value, path_vars=None) -> bool:
         path = self._get_path(path_vars)
 
         try:
             self._save(path, value)
+            self._checksum = self._compute_checksum(path)
             return True
         except Exception as e:
             logging.log(logging.ERROR, STR_SAVE_FUNC_EXCEPTION, e)
@@ -24,7 +28,9 @@ class File:
         path = self._get_path(path_vars)
 
         try:
-            return self._load(path)
+            val = self._load(path)
+            self._checksum = self._compute_checksum(path)
+            return val
         except FileNotFoundError as e:
             logging.log(logging.INFO, e)
             return None
@@ -38,8 +44,19 @@ class File:
     def _load(self, path) -> Any:
         raise NotImplementedError()
 
+    @property
+    def checksum(self):
+        return self._checksum
+
     def _get_path(self, path_vars):
         return self._path if not callable(self._path) else self._path(path_vars)
+
+    def _compute_checksum(self, path):
+        if self._hash_alg is None:
+            return None
+
+        byte_blocks = file_as_blocks(path)
+        return hash_bytes(byte_blocks, self._hash_alg())
 
 
 class PickleFile(File):
@@ -64,8 +81,8 @@ class VarsFile(PickleFile):
 
 
 class CustomFile(File):
-    def __init__(self, path, save_fn=None, load_fn=None):
-        super().__init__(path)
+    def __init__(self, path, save_fn=None, load_fn=None, hash_alg=None):
+        super().__init__(path=path, hash_alg=hash_alg)
         self._save_fn = save_fn
         self._load_fn = load_fn
 
