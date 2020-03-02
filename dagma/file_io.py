@@ -13,12 +13,15 @@ class File:
         self._hash_alg = hash_alg
         self._checksum = None
 
+    def exists(self, path_vars=None) -> bool:
+        path = self.get_path(path_vars)
+        return os.path.exists(path)
+
     def save(self, value, path_vars=None) -> bool:
         path = self.get_path(path_vars)
 
         try:
             self._save(path, value)
-            self._checksum = self._compute_checksum(path)
             return True
         except Exception as e:
             logging.log(logging.ERROR, STR_SAVE_FUNC_EXCEPTION, e)
@@ -29,7 +32,6 @@ class File:
 
         try:
             val = self._load(path)
-            self._checksum = self._compute_checksum(path)
             return val
         except FileNotFoundError as e:
             logging.log(logging.INFO, e)
@@ -44,14 +46,10 @@ class File:
     def _load(self, path) -> Any:
         raise NotImplementedError()
 
-    @property
-    def checksum(self):
-        return self._checksum
-
     def get_path(self, path_vars):
         return self._path if not callable(self._path) else self._path(path_vars)
 
-    def _compute_checksum(self, path):
+    def compute_checksum(self, path):
         if self._hash_alg is None:
             return None
 
