@@ -94,13 +94,6 @@ def test_save_missing_raises():
         n.save()
 
 
-def test_load_missing_raises():
-    n = ComputeNode(add_one, deps=["x"])
-
-    with pytest.raises(ValueError):
-        n.load()
-
-
 def test_manual_save_before_compute_raises(tmp_path):
     file_path = tmp_path / "bad.out"
     n = ComputeNode(add_one, file_path=file_path, save=save_pickle, deps=["x"])
@@ -112,7 +105,6 @@ def test_manual_save_before_compute_raises(tmp_path):
 def test_manual_save_success(tmp_path):
     file_path = tmp_path / "bad.out"
     n1 = ComputeNode(add_one, file_path=file_path, save=save_pickle, deps=["x"])
-    n2 = ComputeNode(add_one, file_path=file_path, load=load_pickle, deps=["x"])
 
     out = QueueRunner(n1)
 
@@ -120,26 +112,13 @@ def test_manual_save_success(tmp_path):
 
     n1.save()
 
+    # Pass nop for transform to ensure load is used (not recomputing)
+    n2 = ComputeNode(lambda: None, file_path=file_path, load=load_pickle, deps=["x"])
     n2.bind_all({"x": 1})
-    n2.load()
 
     out = QueueRunner(n2)
 
     assert out.value == computed_value
-
-
-def test_manual_load_required_binds_missing_raises(tmp_path):
-    file_path = tmp_path / "bad.out"
-    n1 = ComputeNode(add_one, file_path=file_path, save=save_pickle, deps=["x"])
-    n2 = ComputeNode(add_one, file_path=file_path, load=load_pickle, deps=["x"])
-
-    out = QueueRunner(n1)
-
-    out.compute(x=1)
-    n1.save()
-
-    with pytest.raises(ValueError):
-        n2.load()
 
 
 def test_bad_save_raises(tmp_path):

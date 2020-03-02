@@ -1,12 +1,12 @@
+import logging
 import hashlib
 
 from .strings import (
     STR_COMPUTE_NODE_REPR,
     STR_MISSING_VAR_DEPS,
     STR_NO_SAVE_FUNC,
-    STR_NO_LOAD_FUNC,
     STR_SAVE_NOT_COMPUTED,
-    STR_LOAD_NOT_VARS_MATCH,
+    STR_TRANSFORM_CHANGED,
 )
 
 from .file_io import VarsFile, CustomFile
@@ -21,61 +21,67 @@ class Node:
         self._bound_vars = {}
         self._value = None
 
-    def bind(self, vars_):
+    def bind(self, var_dict):
         """
         Set values for graph variables.
         """
-        self._bound_vars = self._remove_non_dep_var(vars_)
+        self._bound_vars = self.remove_non_dep_var(var_dict)
 
-    def bind_all(self, vars_):
+    def bind_all(self, var_dict):
         """
         Set values for graph variables for all nodes in dep tree.
         """
-        self.bind(vars_)
+        self.bind(var_dict)
 
         # TODO(casey): this will call some nodes more than once
         for d in self._node_deps:
-            d.bind_all(vars_)
+            d.bind_all(var_dict)
 
     @staticmethod
     def _compare_vars(vars1, vars2):
         return vars1 == vars2
 
-    def _evaluate(self, vars_, dep_vals=[], force=False):
+    def _evaluate(self, var_dict, dep_vals=[], force=False):
         raise NotImplementedError()
 
-    def __call__(self, vars_dict={}, **vars_):
+    def __call__(self, var_dict={}, **vars_):
         """
         Set values for graph variables for all nodes in dep tree.
         """
-        vars_ = {**vars_dict, **vars_}
-        self.bind_all(vars_)
+        var_dict = {**var_dict, **vars_}
+        self.bind_all(var_dict)
 
         return self
 
-    def _remove_non_dep_var(self, vars_):
-        return {k: vars_[k] for k in set(vars_) & self._var_deps}
+    def remove_non_dep_var(self, var_dict):
+        return {k: var_dict[k] for k in set(var_dict) & self._var_deps}
 
-    def _get_value(self, vars_={}, dep_vals=[], force=False):
+    def get_value(self, var_dict={}, force=False):
+        var_dict = {**self._bound_vars, **self.remove_non_dep_var(var_dict)}
+
+        # Check if value has been cached
         if (
             force
             or not self._mem_cache
             or self._value is None
-            or not self._compare_vars(self._value[1], vars_)
+            or not self._compare_vars(self._value[1], var_dict)
         ):
             return None
 
         return self._value[0]
 
-    def _set_value(self, val, vars_):
+    @property
+    def value(self):
+        return self.get_value(self._bound_vars)
+
+    def set_value(self, val, var_dict):
+        var_dict = {**self._bound_vars, **self.remove_non_dep_var(var_dict)}
         if self._mem_cache:
-            self._value = (val, vars_)
+            self._value = (val, var_dict)
 
-    value = property(_get_value)
-
-    def _check_missing_var_deps(self, vars_):
-        # Check if any required vars are not specified in vars_
-        missing_var_deps = self._var_deps.difference(set(vars_.keys()))
+    def _check_missing_var_deps(self, var_dict):
+        # Check if any required vars are not specified in var_dict
+        missing_var_deps = self._var_deps.difference(set(var_dict.keys()))
         if missing_var_deps:
             raise ValueError(STR_MISSING_VAR_DEPS % missing_var_deps)
 
@@ -86,7 +92,8 @@ class ConstantNode(Node):
 
         self._val = val
 
-    def _evaluate(self, vars_, dep_vals=[], force=False):
+    def _evaluate(self, var_dict, dep_vals=[], force=False):
+        var_dict = {**self._bound_vars, **self.remove_non_dep_var(var_dict)}
         return self._val
 
     def __repr__(self):
@@ -100,10 +107,11 @@ class VarNode(Node):
         self._var = var
         self._var_deps = {var}
 
-    def _evaluate(self, vars_, dep_vals=[], force=False):
-        self._check_missing_var_deps(vars_)
+    def _evaluate(self, var_dict, dep_vals=[], force=False):
+        var_dict = {**self._bound_vars, **self.remove_non_dep_var(var_dict)}
+        self._check_missing_var_deps(var_dict)
 
-        return vars_[self._var]
+        return var_dict[self._var]
 
     def __repr__(self):
         return f"Var({self._var})"
@@ -137,26 +145,36 @@ class ComputeNode(Node):
         self._vars_file = VarsFile(file_path)
 
         self._node_deps, self._var_deps = self._parse_deps(deps)
+        self._transform_heuristics = self._compute_transform_heuristics()
 
-    def _transform(self, vals, vars_):
-        print("transform:", self, vals)
-        val = self._load(vars_)
+    def get_value(self, var_dict={}, force=False):
+        var_dict = {**self._bound_vars, **self.remove_non_dep_var(var_dict)}
+        val = super().get_value(var_dict, force)
 
         if val is None:
-            val = self._transform_fn(*vals)
+            val = self._load(var_dict)
 
-            self._save(val, vars_)
+            if val is not None:
+                self.set_value(val, var_dict)
 
         return val
 
-    def _evaluate(self, vars_, dep_vals=[], force=False):
+    def _transform(self, vals, var_dict):
+        val = self._transform_fn(*vals)
+
+        self._save(val, var_dict)
+
+        return val
+
+    def _evaluate(self, var_dict, dep_vals=[], force=False):
         """
         Evaluate the graph with inputs vars. Can force to recompute all nodes.
         """
-        self._check_missing_var_deps(vars_)
+        var_dict = {**self._bound_vars, **self.remove_non_dep_var(var_dict)}
+        self._check_missing_var_deps(var_dict)
 
-        val = self._transform(dep_vals, vars_)
-        self._set_value(val, vars_)
+        val = self._transform(dep_vals, var_dict)
+        self.set_value(val, var_dict)
 
         return val
 
@@ -169,55 +187,47 @@ class ComputeNode(Node):
 
         self._save(self._value[0], self._value[1])
 
-    def load(self):
-        """
-        TODO: consider removing load. Why not just ask for the value normally with value
-        or compute(). Perhaps this is just a way to ensure the graph won't start a
-        computation if there is no load file? Add compute(load_only=True)?
-        """
-
-        if not self._file.can_load():
-            raise ValueError(STR_NO_LOAD_FUNC)
-
-        vars_ = self._bound_vars
-        load_val = self._load(vars_)
-
-        if load_val:
-            self._set_value(load_val, vars_)
-        else:
-            raise ValueError(STR_LOAD_NOT_VARS_MATCH)
-
-    def _save(self, value, vars_):
+    def _save(self, value, var_dict):
         """
         Save the result of this node's transformation.
         """
         if not self._file.can_save():
             return
 
-        success = self._file.save(value, path_vars=vars_)
+        success = self._file.save(value, path_vars=var_dict)
 
         if success:
-            self._vars_file.save((vars_, self._file.checksum), path_vars=vars_)
+            self._vars_file.save(
+                (var_dict, self._file.checksum, self._transform_heuristics),
+                path_vars=var_dict,
+            )
 
-    def _load(self, vars_):
+    def _load(self, var_dict):
         """
         Load the result of this node's transformation.
         """
         if not self._file.can_load():
             return None
 
-        saved_vars = self._vars_file.load(path_vars=vars_)
+        saved_vars = self._vars_file.load(path_vars=var_dict)
 
         if saved_vars is not None:
-            saved_vars, prev_checksum = saved_vars
+            saved_vars, prev_checksum, prev_transform_heuristics = saved_vars
 
-        if not self._compare_vars(vars_, saved_vars):
+        if not self._compare_vars(var_dict, saved_vars):
             return None
 
-        val = self._file.load(path_vars=vars_)
+        val = self._file.load(path_vars=var_dict)
 
         if self._file.checksum != prev_checksum:
             return None
+
+        if self._transform_heuristics != prev_transform_heuristics:
+            logging.log(
+                logging.WARN,
+                STR_TRANSFORM_CHANGED,
+                self._file.get_path(path_vars=var_dict),
+            )
 
         return val
 
@@ -245,6 +255,10 @@ class ComputeNode(Node):
             return VarNode(in_)
         else:
             return ConstantNode(in_)
+
+    def _compute_transform_heuristics(self):
+        code = self._transform_fn.__code__
+        return (code.co_code, code.co_consts[1:], code.co_argcount)
 
     def __repr__(self):
         return STR_COMPUTE_NODE_REPR % (self._transform_fn.__name__, self._bound_vars)

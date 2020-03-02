@@ -8,22 +8,19 @@ class Runner:
     def __init__(self, node):
         self._sink_node = node
 
-    def compute(self, vars_dict={}, force=False, **vars_):
-        var_overrides = {**vars_dict, **vars_}
+    def compute(self, var_dict={}, force=False, **vars_):
+        return self._compute_node(self._sink_node, {**var_dict, **vars_}, force)
 
-        return self._compute_node(self._sink_node, var_overrides, force)
-
-    def _compute_node(self, node, vars_dict={}, force=False):
+    def _compute_node(self, node, var_dict={}, force=False):
         raise NotImplementedError()
 
-    def _get_or_evaluate_node(self, node, vars_dict, dep_vals, force):
-        vars_ = {**node._bound_vars, **node._remove_non_dep_var(vars_dict)}
+    def _get_node_value(self, node, var_dict, force):
+        var_dict = node.remove_non_dep_var(var_dict)
+        return node.get_value(var_dict, force)
 
-        val = node._get_value(vars_, dep_vals, force)
-
-        if val is None:
-            val = node._evaluate(vars_, dep_vals, force)
-            node._set_value(val, vars_)
+    def _evaluate_node(self, node, var_dict, dep_vals, force):
+        val = node._evaluate(var_dict, dep_vals, force)
+        node.set_value(val, var_dict)
 
         return val
 
@@ -33,21 +30,33 @@ class Runner:
 
 
 class RecursiveRunner(Runner):
-    def _compute_node(self, node, vars_dict={}, force=False):
-        # Compute dependent values
-        dep_vals = [self._compute_node(d, vars_dict, force) for d in node._node_deps]
+    def _compute_node(self, node, var_dict={}, force=False):
+        val = self._get_node_value(node, var_dict, force)
 
-        val = self._get_or_evaluate_node(node, vars_dict, dep_vals, force)
+        if val is not None:
+            return val
+
+        # Compute dependent values
+        dep_vals = [self._compute_node(d, var_dict, force) for d in node._node_deps]
+
+        val = self._evaluate_node(node, var_dict, dep_vals, force)
 
         return val
 
 
 class QueueRunner(Runner):
-    def _compute_node(self, node, vars_dict={}, force=False):
+    """
+    TODO: can we do better with memory for mem_cache=False objects? If a large output
+    has multiple deps it may be kep in the computed_vals dict for a long time. Can we
+    sacrifice recompute time for reduced memory?
+    """
+
+    def _compute_node(self, node, var_dict={}, force=False):
         visited: Dict[Node, bool] = {}
         to_explore = [node]
         node_queue = []
         reverse_dep_list: Dict[Node, list] = defaultdict(list)
+        computed_vals: Dict[Node, Any] = {}
 
         while len(to_explore) > 0:
             n = to_explore.pop()
@@ -56,6 +65,13 @@ class QueueRunner(Runner):
                 continue
 
             visited[n] = True
+
+            val = self._get_node_value(n, var_dict, force)
+
+            # Node value is already saved, don't add the nodes it depends on
+            if val is not None:
+                computed_vals[n] = val
+                continue
 
             for dep in n._node_deps:
                 reverse_dep_list[dep].append(n)
@@ -80,10 +96,10 @@ class QueueRunner(Runner):
             to_delete[pos].append(n)
 
         # Compute pass on node queue
-        computed_vals: Dict[Node, Any] = {}
         for i, n in enumerate(node_queue):
-            dep_vals = [computed_vals[d] for d in n._node_deps]
-            computed_vals[n] = self._get_or_evaluate_node(n, vars_dict, dep_vals, force)
+            if n not in computed_vals:
+                dep_vals = [computed_vals[d] for d in n._node_deps]
+                computed_vals[n] = self._evaluate_node(n, var_dict, dep_vals, force)
 
             # Remove values no longer needed at this point in queue
             for d in to_delete[i]:

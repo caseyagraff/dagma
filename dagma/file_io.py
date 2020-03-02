@@ -14,7 +14,7 @@ class File:
         self._checksum = None
 
     def save(self, value, path_vars=None) -> bool:
-        path = self._get_path(path_vars)
+        path = self.get_path(path_vars)
 
         try:
             self._save(path, value)
@@ -25,7 +25,7 @@ class File:
             raise e
 
     def load(self, path_vars=None) -> Any:
-        path = self._get_path(path_vars)
+        path = self.get_path(path_vars)
 
         try:
             val = self._load(path)
@@ -48,7 +48,7 @@ class File:
     def checksum(self):
         return self._checksum
 
-    def _get_path(self, path_vars):
+    def get_path(self, path_vars):
         return self._path if not callable(self._path) else self._path(path_vars)
 
     def _compute_checksum(self, path):
@@ -72,8 +72,8 @@ class PickleFile(File):
 
 
 class VarsFile(PickleFile):
-    def _get_path(self, path_vars):
-        path = super()._get_path(path_vars)
+    def get_path(self, path_vars):
+        path = super().get_path(path_vars)
 
         path, file_name = os.path.split(path)
 
