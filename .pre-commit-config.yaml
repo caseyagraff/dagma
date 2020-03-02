@@ -6,7 +6,9 @@ repos:
     rev: v2.4.0
     hooks:
     -   id: trailing-whitespace
+        stages: [commit]
     -   id: end-of-file-fixer
+        stages: [commit]
     -   id: check-yaml
     -   id: check-added-large-files
 -   repo: https://github.com/ambv/black
@@ -30,10 +32,10 @@ repos:
         files: .py$
 -   repo: local
     hooks:
-    -   id: tests
-        name: run tests
-        entry: poetry run pytest -v
-        files: '(.*_test|test_.*).py'
+    -   id: pytest
+        name: pytest
+        entry: poetry run pytest --cov=dagma --cov-config .coveragerc tests/
+        pass_filenames: false
         language: system
         types: [python]
         stages: [push]

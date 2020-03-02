@@ -26,6 +26,10 @@ check:
 setup:
 	@poetry install
 
+install_hooks:
+	@poetry run pre-commit install
+	@poetry run pre-commit install -t pre-push
+
 build:
 	@poetry build
 
@@ -34,3 +38,6 @@ publish:
 
 test:
 	@poetry run pytest --cov=dagma --cov-config .coveragerc tests/
+
+test_watch:
+	@poetry run ptw -c
