@@ -62,8 +62,8 @@ class QueueRunner(Runner):
     has multiple deps it may be kep in the computed_vals dict for a long time. Can we
     sacrifice recompute time for reduced memory?
     """
-    def _build_topo_queue(self, node, var_dict, force):
 
+    def _build_topo_queue(self, node, var_dict, force):
         visited: Dict[Node, bool] = {}
         to_explore = [node]
         node_queue = []
@@ -137,7 +137,7 @@ class QueueRunner(Runner):
 
         return computed_vals[node]
 
-      
+
 class ThreadRunner(QueueRunner):
     # TODO(casey): clean up this code and add a multiprocessing runner
     def __init__(self, node, num_workers=1):
