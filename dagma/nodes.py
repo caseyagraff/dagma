@@ -72,8 +72,7 @@ class Node:
             or not self._mem_cache
             or self._value is None
             or not self._compare_vars(self._value[1], var_dict)
-        )
-
+          
     def can_get_value(self, var_dict={}, force=False):
         return self._value_is_mem_cached(var_dict, force)
 
