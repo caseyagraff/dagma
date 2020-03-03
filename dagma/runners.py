@@ -64,7 +64,6 @@ class QueueRunner(Runner):
     """
 
     def _build_topo_queue(self, node, var_dict, force):
-
         visited: Dict[Node, bool] = {}
         to_explore = [node]
         node_queue = []
