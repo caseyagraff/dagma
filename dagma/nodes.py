@@ -7,6 +7,7 @@ from .strings import (
     STR_NO_SAVE_FUNC,
     STR_SAVE_NOT_COMPUTED,
     STR_TRANSFORM_CHANGED,
+    STR_CHECKSUM_CHANGED,
 )
 
 from .file_io import VarsFile, CustomFile
@@ -60,15 +61,21 @@ class Node:
         var_dict = {**self._bound_vars, **self.remove_non_dep_var(var_dict)}
 
         # Check if value has been cached
-        if (
+        if not self._value_is_mem_cached(var_dict, force):
+            return None
+
+        return self._value[0]  # type: ignore
+
+    def _value_is_mem_cached(self, var_dict={}, force=False):
+        return not (
             force
             or not self._mem_cache
             or self._value is None
             or not self._compare_vars(self._value[1], var_dict)
-        ):
-            return None
+        )
 
-        return self._value[0]
+    def can_get_value(self, var_dict={}, force=False):
+        return self._value_is_mem_cached(var_dict, force)
 
     @property
     def value(self):
@@ -147,6 +154,14 @@ class ComputeNode(Node):
         self._node_deps, self._var_deps = self._parse_deps(deps)
         self._transform_heuristics = self._compute_transform_heuristics()
 
+    def can_get_value(self, var_dict={}, force=False):
+        can_get = super().can_get_value(var_dict, force)
+
+        if not can_get:
+            can_get = self._can_load(var_dict)
+
+        return can_get
+
     def get_value(self, var_dict={}, force=False):
         var_dict = {**self._bound_vars, **self.remove_non_dep_var(var_dict)}
         val = super().get_value(var_dict, force)
@@ -196,31 +211,41 @@ class ComputeNode(Node):
 
         success = self._file.save(value, path_vars=var_dict)
 
+        path = self._file.get_path(path_vars=var_dict)
+        checksum = self._file.compute_checksum(path)
+
         if success:
             self._vars_file.save(
-                (var_dict, self._file.checksum, self._transform_heuristics),
-                path_vars=var_dict,
+                (var_dict, checksum, self._transform_heuristics), path_vars=var_dict
             )
 
-    def _load(self, var_dict):
-        """
-        Load the result of this node's transformation.
-        """
+    def _can_load(self, var_dict):
         if not self._file.can_load():
-            return None
+            return False
+
+        if not self._file.exists(path_vars=var_dict):
+            return False
 
         saved_vars = self._vars_file.load(path_vars=var_dict)
 
-        if saved_vars is not None:
-            saved_vars, prev_checksum, prev_transform_heuristics = saved_vars
+        if saved_vars is None:
+            return False
+
+        saved_vars, prev_checksum, prev_transform_heuristics = saved_vars
 
         if not self._compare_vars(var_dict, saved_vars):
-            return None
+            return False
 
-        val = self._file.load(path_vars=var_dict)
+        path = self._file.get_path(path_vars=var_dict)
+        checksum = self._file.compute_checksum(path)
 
-        if self._file.checksum != prev_checksum:
-            return None
+        if checksum != prev_checksum:
+            logging.log(
+                logging.WARN,
+                STR_CHECKSUM_CHANGED,
+                self._file.get_path(path_vars=var_dict),
+            )
+            return False
 
         if self._transform_heuristics != prev_transform_heuristics:
             logging.log(
@@ -229,7 +254,16 @@ class ComputeNode(Node):
                 self._file.get_path(path_vars=var_dict),
             )
 
-        return val
+        return True
+
+    def _load(self, var_dict):
+        """
+        Load the result of this node's transformation.
+        """
+        if not self._can_load(var_dict):
+            return None
+
+        return self._file.load(path_vars=var_dict)
 
     def graph(self):
         """

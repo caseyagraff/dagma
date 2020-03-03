@@ -11,3 +11,5 @@ STR_LOAD_FUNC_EXCEPTION = 'Exception during load "%s"'
 STR_SAVE_NOT_COMPUTED = "Node has not been computed. Cannot save."
 
 STR_TRANSFORM_CHANGED = 'Transform function used for "%s" may have changed.'
+
+STR_CHECKSUM_CHANGED = 'Checksum for "%s" doesn\'t match last save.'
