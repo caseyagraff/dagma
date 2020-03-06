@@ -1,4 +1,16 @@
-from dagma import create_node, QueueRunner
+import pickle
+
+from dagma import create_node, QueueRunner, ComputeNode
+
+
+def save_pickle(path, value):
+    with open(path, "wb") as f_out:
+        pickle.dump(value, f_out)
+
+
+def load_pickle(path):
+    with open(path, "rb") as f_in:
+        return pickle.load(f_in)
 
 
 @create_node
@@ -111,3 +123,27 @@ def test_dep_and_input():
     out = QueueRunner(out)
 
     assert out.value
+
+
+def test_load_save(tmp_path):
+    def get_file_path(params):
+        fn = "x%s_z%s.pkl" % (params["x"], params["z"])
+
+        return tmp_path / fn
+
+    @create_node(file_path=get_file_path, load=load_pickle, save=save_pickle)
+    def x2z3_load_save(x, z):
+        return x * 2 + z * 3
+
+    out = x2z3_load_save("x", "z")(x=1, z=2)
+
+    out = QueueRunner(out)
+
+    assert out.value == 8
+
+    out2 = ComputeNode(
+        lambda: None, file_path=get_file_path, load=load_pickle, deps=["x", "z"]
+    )
+    out2 = out2(x=1, z=2)
+
+    assert out2.value == 8

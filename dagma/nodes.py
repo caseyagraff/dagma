@@ -75,6 +75,7 @@ class Node:
         )
 
     def can_get_value(self, var_dict={}, force=False):
+        var_dict = {**self._bound_vars, **var_dict}
         return self._value_is_mem_cached(var_dict, force)
 
     @property
@@ -155,6 +156,7 @@ class ComputeNode(Node):
         self._transform_heuristics = self._compute_transform_heuristics()
 
     def can_get_value(self, var_dict={}, force=False):
+        var_dict = {**self._bound_vars, **var_dict}
         can_get = super().can_get_value(var_dict, force)
 
         if not can_get:
