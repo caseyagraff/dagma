@@ -50,6 +50,7 @@ class File:
         return self._path if not callable(self._path) else self._path(path_vars)
 
     def compute_checksum(self, path):
+
         if self._hash_alg is None:
             return None
 

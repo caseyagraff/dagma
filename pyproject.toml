@@ -3,7 +3,7 @@ name = "dagma"
 version = "0.1.0"
 description = "A lightweight pipelining tool for computation."
 authors = ["Casey Graff <caseyagraff@gmail.com>"]
-license = 'BSD 2'
+license = 'BSD-2-Clause'
 readme = "README.md"
 
 [tool.poetry.dependencies]
