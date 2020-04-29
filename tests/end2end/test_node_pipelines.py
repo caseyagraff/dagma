@@ -199,12 +199,15 @@ def test_reusing_pipeline_binding():
 
 
 def test_fanin_pipeline():
-    adds = []
+    vals = []
     for i in range(10):
-        adds.append(add_one(i))
+        ao = add_one(i)
+        mt = multiply_two(ao)
 
-    s = sum_(*adds)
+        vals.append(mt)
+
+    s = sum_(*vals)
 
     out = QueueRunner(s)
 
-    assert out.value == sum([i + 1 for i in range(10)])
+    assert out.value == sum([(i + 1) * 2 for i in range(10)])
