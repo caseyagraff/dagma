@@ -5,6 +5,7 @@ from dagma import create_node, QueueRunner
 
 @create_node
 def add_one(x):
+    print("a", x)
     return x + 1
 
 
@@ -15,6 +16,7 @@ def sub_two(x):
 
 @create_node
 def sum_(*x):
+    print("x", x)
     return sum(x)
 
 
@@ -194,3 +196,15 @@ def test_reusing_pipeline_binding():
 
     out = QueueRunner(out)
     assert out.value == 8
+
+
+def test_fanin_pipeline():
+    adds = []
+    for i in range(10):
+        adds.append(add_one(i))
+
+    s = sum_(*adds)
+
+    out = QueueRunner(s)
+
+    assert out.value == sum([i + 1 for i in range(10)])
