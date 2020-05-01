@@ -3,10 +3,11 @@ import pytest
 from dagma import create_node, QueueRunner
 
 
-@create_node
-def add_one(x):
-    print("a", x)
+def _add_one(x):
     return x + 1
+
+
+add_one = create_node(_add_one)
 
 
 @create_node
@@ -14,15 +15,25 @@ def sub_two(x):
     return x - 2
 
 
-@create_node
-def sum_(*x):
-    print("x", x)
+def _sum_all(*x):
     return sum(x)
 
 
-@create_node
-def multiply_two(x):
+sum_all = create_node(_sum_all)
+
+
+def _sum_list(x):
+    return sum(x)
+
+
+sum_list = create_node(_sum_list)
+
+
+def _multiply_two(x):
     return x * 2
+
+
+multiply_two = create_node(_multiply_two)
 
 
 def test_one_node_pipeline():
@@ -57,7 +68,7 @@ def test_constant_pipeline():
 def test_multi_dep_pipeline():
     o1 = add_one("x")
     o2 = sub_two("y")
-    out = sum_(o1, o2)
+    out = sum_all(o1, o2)
 
     out = out(x=1, y=4)
 
@@ -69,8 +80,8 @@ def test_multi_dep_pipeline():
 def test_full_pipeline():
     o1 = add_one("x")
     o2 = sub_two("y")
-    out = sum_(o1, o2)
-    out = sum_(o1, out)
+    out = sum_all(o1, o2)
+    out = sum_all(o1, out)
     out = multiply_two(out)
 
     out = out(x=1, y=4)
@@ -85,8 +96,8 @@ def test_full_pipeline():
 def test_vars_dict():
     o1 = add_one("x")
     o2 = sub_two("y")
-    out = sum_(o1, o2)
-    out = sum_(o1, out)
+    out = sum_all(o1, o2)
+    out = sum_all(o1, out)
     out = multiply_two(out)
 
     out = out({"x": 1, "y": 4})
@@ -99,8 +110,8 @@ def test_vars_dict():
 def test_vars_dict_override():
     o1 = add_one("x")
     o2 = sub_two("y")
-    out = sum_(o1, o2)
-    out = sum_(o1, out)
+    out = sum_all(o1, o2)
+    out = sum_all(o1, out)
     out = multiply_two(out)
 
     out = out({"x": 1, "y": 4}, x=2)
@@ -124,7 +135,7 @@ def test_missing_graph_inputs_throws():
 
 def test_mixed_deps():
     out = add_one("x")
-    out = sum_(1, out)
+    out = sum_all(1, out)
 
     out = out(x=2)
 
@@ -136,8 +147,8 @@ def test_mixed_deps():
 def test_force_compute():
     o1 = add_one("x")
     o2 = sub_two("y")
-    out = sum_(o1, o2)
-    out = sum_(o1, out)
+    out = sum_all(o1, o2)
+    out = sum_all(o1, out)
     out = multiply_two(out)
 
     out = out(y=4)
@@ -173,7 +184,7 @@ def test_reusing_pipeline_nested():
 def test_shared_binding():
     ao = add_one("x")
     st = sub_two("y")
-    s = sum_(ao, st)
+    s = sum_all(ao, st)
 
     out = s(x=2)
 
@@ -198,16 +209,20 @@ def test_reusing_pipeline_binding():
     assert out.value == 8
 
 
-def test_fanin_pipeline():
-    vals = []
-    for i in range(10):
-        ao = add_one(i)
-        mt = multiply_two(ao)
+def test_foreach_pipeline():
+    xs = list(range(10))
 
-        vals.append(mt)
+    ao = add_one("xs", foreach="xs")
+    mt = multiply_two(ao, foreach=0)
+    s = sum_list(mt)
 
-    s = sum_(*vals)
+    print(s.text_graph())
 
-    out = QueueRunner(s)
+    out = s(xs=xs)
 
-    assert out.value == sum([(i + 1) * 2 for i in range(10)])
+    print(s.text_graph())
+    out = QueueRunner(out)
+
+    correct_val = _sum_list([_multiply_two(_add_one(v)) for v in xs])
+
+    assert out.value == correct_val

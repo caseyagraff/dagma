@@ -1,4 +1,4 @@
-STR_COMPUTE_NODE_REPR = "(%s, bound=%s)"
+STR_COMPUTE_NODE_REPR = "Comp(%s, %s, deps=%s, bound=%s)"
 
 # === Error Messages ===
 STR_MISSING_VAR_DEPS = "Not all graph variables are bound. Missing %s."
@@ -9,6 +9,11 @@ STR_SAVE_FUNC_EXCEPTION = 'Exception during save "%s"'
 STR_LOAD_FUNC_EXCEPTION = 'Exception during load "%s"'
 
 STR_SAVE_NOT_COMPUTED = "Node has not been computed. Cannot save."
+
+STR_FILE_PATH_WRONG_TYPE_FOREACH = (
+    'Incorrect type for file_path ("%s"). '
+    + "Must be None or a function; which is required when using foreach."
+)
 
 STR_TRANSFORM_CHANGED = 'Transform function used for "%s" may have changed.'
 

@@ -12,6 +12,11 @@ def add_one(x):
     return x + 1
 
 
+@create_node(foreach="xs")
+def add_one_foreach(x):
+    return x + 1
+
+
 @create_node
 def sub_two(x):
     return x - 2
@@ -141,3 +146,22 @@ def test_no_recompute_subnode_unrelated_var_change(call_counter):
 
     out.compute(x=1, y=3)
     assert call_counter.count == 2
+
+
+def test_transform_calls_compute_foreach(call_counter):
+    ao = add_one_foreach("xs")
+
+    out = QueueRunner(ao)
+
+    assert out.compute(xs=[1, 2, 3]) == [2, 3, 4]
+    assert call_counter.count == 3
+
+    call_counter.reset()
+
+    assert out.compute(xs=[1, 2, 3]) == [2, 3, 4]
+    assert call_counter.count == 0
+
+    call_counter.reset()
+
+    assert out.compute(xs=[2, 3, 4]) == [3, 4, 5]
+    assert call_counter.count == 3
