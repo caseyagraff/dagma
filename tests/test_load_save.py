@@ -3,7 +3,7 @@ import pickle
 import pytest
 
 from .utils import call_count, Counter
-from dagma import ComputeNode, QueueRunner
+from dagma import ComputeNode, ForeachComputeNode, QueueRunner
 
 
 def add_one(x):
@@ -176,3 +176,58 @@ def test_load_file_not_found_no_exception(tmp_path):
     # Expect no exception
     out = QueueRunner(n2)
     out.compute(x=1)
+
+
+# === Foreach ===
+def test_save_foreach(tmp_path):
+    def file_path(params):
+        return tmp_path / f"save_{params['xs']}.pkl"
+
+    n = ForeachComputeNode(
+        add_one, file_path=file_path, save=save_pickle, deps=["xs"], foreach="xs"
+    )
+
+    out = QueueRunner(n)
+
+    xs = [1013, 1, -5]
+    computed_values = out.compute(xs=xs)
+
+    for val, computed_val in zip(xs, computed_values):
+        saved_val = load_pickle(file_path({"xs": val}))
+        assert computed_val == saved_val
+
+
+def test_load_save_foreach(tmp_path):
+    def file_path(params):
+        return tmp_path / f"save-{params['xs']}.pkl"
+
+    n = ForeachComputeNode(
+        add_one,
+        file_path=file_path,
+        save=save_pickle,
+        load=load_pickle,
+        deps=["xs"],
+        foreach="xs",
+    )
+
+    out = QueueRunner(n)
+
+    xs = [65, 70, 1]
+    value = out.compute(xs=xs)
+
+    counter = Counter()
+    add_one_counter = call_count(counter)(add_one)
+
+    n = ForeachComputeNode(
+        add_one_counter,
+        file_path=file_path,
+        save=save_pickle,
+        load=load_pickle,
+        deps=["xs"],
+        foreach="xs",
+    )(xs=xs)
+
+    out = QueueRunner(n)
+
+    assert out.value == value
+    assert counter.count == 0

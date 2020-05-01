@@ -63,32 +63,47 @@ class QueueRunner(Runner):
     sacrifice recompute time for reduced memory?
     """
 
-    def _build_topo_queue(self, node, var_dict, force):
+    def _build_topo_queue(self, node: Node, var_dict: Dict, force: bool):
         visited: Dict[Node, bool] = {}
-        to_explore = [node]
-        node_queue = []
+        explore_stack = []
+        remaining_edges: Dict[Node, List[Node]] = {}
+        node_queue: List[Node] = []
         reverse_dep_list: Dict[Node, list] = defaultdict(list)
 
-        while len(to_explore) > 0:
-            n = to_explore.pop()
+        # Add starting node
+        explore_stack.append(node)
+        remaining_edges[node] = (
+            node._node_deps.copy()
+            if not self._can_get_node_value(node, var_dict, force)
+            else []
+        )
 
-            if n in visited:
+        while len(explore_stack) > 0:
+            # Look at node on top of stack
+            cur_n = explore_stack[-1]
+            out_edges = remaining_edges[cur_n]
+
+            # If no more outgoing edges, remove node from stack and add to order queue
+            if len(out_edges) == 0:
+                node_queue.append(explore_stack.pop())
                 continue
 
-            visited[n] = True
+            # Follow an outgoing edge from the node
+            next_n = out_edges.pop()
 
-            node_queue.append(n)
+            reverse_dep_list[next_n].append(cur_n)
 
-            # Node value is already saved, don't add the nodes it depends on
-            if self._can_get_node_value(n, var_dict, force):
+            # If outgoing edge leads to already visited node, skip it
+            if next_n in visited:
                 continue
 
-            for dep in n._node_deps:
-                reverse_dep_list[dep].append(n)
-                if dep not in visited:
-                    to_explore.append(dep)
-
-        node_queue.reverse()
+            visited[next_n] = True
+            explore_stack.append(next_n)
+            remaining_edges[next_n] = (
+                next_n._node_deps.copy()
+                if not self._can_get_node_value(next_n, var_dict, force)
+                else []
+            )
 
         return node_queue, reverse_dep_list
 

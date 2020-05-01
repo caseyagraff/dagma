@@ -39,5 +39,8 @@ publish:
 test:
 	@poetry run pytest --cov=dagma --cov-config .coveragerc tests/
 
+coverage_missing:
+	@poetry run pytest --cov=dagma --cov-report term-missing --cov-config .coveragerc tests/
+
 test_watch:
 	@poetry run ptw -c
