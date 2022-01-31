@@ -1,5 +1,5 @@
 import pytest
-from dagma.decorators.nodes import compute_node
+from dagma import compute_node
 
 
 @pytest.mark.asyncio
@@ -11,4 +11,4 @@ async def test_decorator():
 
     add_decorator = compute_node()(add)
 
-    assert await add_decorator(2, 3) == value
+    assert await add_decorator(2, 3).get() == value

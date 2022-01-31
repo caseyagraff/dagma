@@ -1,12 +1,11 @@
 import pytest
-import time
 from functools import reduce
 from pathlib import Path
 from typing import Dict, List, Tuple
 import random
 from tempfile import TemporaryDirectory
 
-from dagma.decorators.nodes import compute_node
+from dagma import compute_node, AwaitableValue, flatten_awaitable
 
 DATA_DIR = Path(__file__).parent.joinpath("data")
 
@@ -62,13 +61,16 @@ def preprocess_data(data: IrisFormattedData) -> IrisFormattedData:
     return data_preprocessed
 
 
-def reduce_data_fn(acc: IrisDataAcc, datum: IrisFormattedDatum) -> IrisDataAcc:
-    entry = acc[datum[1]]
-    return {**acc, datum[1]: (entry[0] + 1, entry[1] + datum[0])}
+def file_name_model_train(data: IrisFormattedData) -> str:
+    return str(test_dir.joinpath("model_train.pkl"))
 
 
-@compute_node()
+@compute_node(file_name=file_name_model_train)
 def model_train(data: IrisFormattedData) -> IrisModel:
+    def reduce_data_fn(acc: IrisDataAcc, datum: IrisFormattedDatum) -> IrisDataAcc:
+        entry = acc[datum[1]]
+        return {**acc, datum[1]: (entry[0] + 1, entry[1] + datum[0])}
+
     data_train = data[: int(len(data) * IRIS_TRAIN_SPLIT)]
     data_acc = reduce(
         reduce_data_fn, data_train, {0: (0, 0.0), 1: (0, 0.0), 2: (0, 0.0)}
@@ -127,24 +129,23 @@ def build_summary(results: IrisResults) -> Dict[int, float]:
     )
 
 
-IRIS_SUMMARY_EXPECTED = {0: 1.0, 1: 0.6, 2: 0.8}
-
-
 async def logistic_regression():
-    data: List[str] = []
+    data_formatted_awaitable: List[AwaitableValue[IrisFormattedData]] = []
     for chunk_ind in range(IRIS_LOAD_CHUNKS):
-        data += await load_data(IRIS_DATA_NAME, chunk_ind)
+        data = load_data(IRIS_DATA_NAME, chunk_ind)
+        data_formatted_awaitable.append(format_data(data))
 
-    data_formatted = format_data(data)
-    data_preprocessed = await preprocess_data(data_formatted)
+    data_formatted = flatten_awaitable(data_formatted_awaitable)
 
+    data_preprocessed = preprocess_data(data_formatted)
     model = model_train(data_preprocessed)
-
     results = model_test(data_preprocessed, model)
-
-    summary = await build_summary(results)
+    summary = await build_summary(results).get()
 
     return summary
+
+
+IRIS_SUMMARY_EXPECTED = {0: 1.0, 1: 0.6, 2: 0.8}
 
 
 @pytest.mark.asyncio

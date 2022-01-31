@@ -1,8 +1,9 @@
 from datetime import datetime
 import functools
-import inspect
 import os.path
 from typing import Any, Callable, Coroutine, ParamSpec, TypeVar, cast
+
+from dagma.nodes.awaitable_value import AwaitableValue
 from ..io import save_pickle, load_pickle
 
 TReturn = TypeVar("TReturn")
@@ -17,9 +18,12 @@ DAGMA_DEBUG: bool = True
 """
 Create a class Result that wraps any return values.
 Can call .get() to extract the value, otherwise it just gets passed along.
-If the class value is needed it will be awaited the first time and stored internally for subsequent look ups. 
+If the class value is needed it will be awaited the first time and stored internally for
+subsequent look ups.
 
-Q: How to handle if we don't want to cache the value, but it is needed in the future? Require the user to either set cache=True or enable load/save, or re-execute it themselves in the pipeline setup?
+Q: How to handle if we don't want to cache the value, but it is needed in the future? 
+Require the user to either set cache=True or enable load/save, or re-execute it
+themselves in the pipeline setup?
 """
 
 
@@ -53,7 +57,7 @@ def load_save_wrap(
 
         if os.path.exists(file_name_str):
             if DAGMA_DEBUG:
-                print("Loaded saved data.")
+                print(f"Skipping: {func.__name__} {datetime.now()}")
 
             return cast(TReturn, load_fn(file_name_str))
 
@@ -67,11 +71,13 @@ def load_save_wrap(
 
 
 async def await_args(
-    *args: Any | Coroutine[Any, Any, Any], **kwargs: Any | Coroutine[Any, Any, Any]
+    *args: Any | AwaitableValue[Any], **kwargs: Any | AwaitableValue[Any]
 ):
-    args_awaited = [await arg if inspect.isawaitable(arg) else arg for arg in args]
+    args_awaited = [
+        await arg.get() if isinstance(arg, AwaitableValue) else arg for arg in args
+    ]
     kwargs_awaited = {
-        arg_name: await arg if inspect.isawaitable(arg) else arg
+        arg_name: await arg.get() if isinstance(arg, AwaitableValue) else arg
         for (arg_name, arg) in kwargs.items()
     }
 
@@ -90,22 +96,31 @@ def async_wrap(
     return wrapper
 
 
+def awaitable_wrap(
+    func: Callable[TParams, Coroutine[Any, Any, TReturn]]
+) -> Callable[TParams, AwaitableValue[TReturn]]:
+    @functools.wraps(func)
+    def wrapper(*args: TParams.args, **kwargs: TParams.kwargs):
+        ret = func(*args, **kwargs)
+        return AwaitableValue(ret)
+
+    return wrapper
+
+
 def compute_node(
     file_name: str | Callable[TParams, str] | None = None,
-) -> Callable[
-    [Callable[TParams, TReturn]], Callable[..., Coroutine[Any, Any, TReturn]]
-]:
+) -> Callable[[Callable[TParams, TReturn]], Callable[..., AwaitableValue[TReturn]]]:
     def decorator(
         func: Callable[TParams, TReturn]
-    ) -> Callable[TParams, Coroutine[Any, Any, TReturn]]:
+    ) -> Callable[TParams, AwaitableValue[TReturn]]:
         func_ = async_wrap(func)
-
-        if file_name is not None:
-            func_ = load_save_wrap(func_, file_name=file_name)
 
         if DAGMA_DEBUG:
             func_ = debug_wrap(func_)
 
-        return func_
+        if file_name is not None:
+            func_ = load_save_wrap(func_, file_name=file_name)
+
+        return awaitable_wrap(func_)
 
     return decorator
