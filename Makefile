@@ -21,14 +21,10 @@ format:
 
 check:
 	@poetry run flake8 dagma tests scripts
-	@poetry run mypy dagma tests scripts
+	@poetry run pyright dagma tests scripts
 
 setup:
 	@poetry install
-
-install_hooks:
-	@poetry run pre-commit install
-	@poetry run pre-commit install -t pre-push
 
 build:
 	@poetry build
@@ -39,5 +35,8 @@ publish:
 test:
 	@poetry run pytest --cov=dagma --cov-config .coveragerc tests/
 
+coverage_missing:
+	@poetry run pytest --cov=dagma --cov-report term-missing --cov-config .coveragerc tests/
+
 test_watch:
-	@poetry run ptw -c
+	@poetry run ptw -- -rP
